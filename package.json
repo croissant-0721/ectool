@@ -1,0 +1,8 @@
+{
+  "name": "episode-cover-tool",
+  "version": "0.1.0",
+  "description": "批量剧集封面生成器：母版封面 + 文件名集数 -> 每集封面注入为视频第 1 帧",
+  "bin": { "ectool": "bin/ectool.js" },
+  "engines": { "node": ">=18" },
+  "private": true
+}

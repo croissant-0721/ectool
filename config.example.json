@@ -1,0 +1,58 @@
+{
+  "master": "./cover.jpg",
+  "input": "./videos",
+  "output": "./out",
+  "extensions": [".mp4", ".mov", ".m4v"],
+
+  "box": {
+    "anchor": "bottom-right",
+    "margin": { "x": "4%", "y": "2%" },
+    "size":   { "w": "20%", "h": "6%" }
+  },
+
+  "text": {
+    "template": "EP{n}",
+    "fontFile": "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
+    "color": "0xE8C170",
+    "size": "auto",
+    "fill": 0.88,
+    "align": "center",
+    "valign": "middle",
+    "strokeWidth": 2,
+    "strokeColor": "0x1a1207"
+  },
+
+  "erase": { "mode": "none" },
+  "cover": { "duration": null, "attachedPic": false },
+
+  "subtitles": {
+    "enabled": true,
+    "language": "English",
+    "dir": "./subs",
+    "style": { "fontSize": 27 }
+  },
+
+  "bgm": {
+    "enabled": true,
+    "dir": "./bgm",
+    "levelRatio": 0.2,
+    "moodPriority": [],
+    "fadeIn": 1.5,
+    "fadeOut": 2.0,
+    "duck": { "enabled": true, "threshold": 0.05, "ratio": 6, "attack": 20, "release": 400, "makeup": 1 }
+  },
+
+  "outro": {
+    "enabled": true,
+    "freezeDuration": 1.0,
+    "trimBlackTail": true,
+    "blackThreshold": 20,
+    "sfxPath": null,
+    "sfxTargetPeakDb": -1.5,
+    "sparkSource": "procedural"
+  },
+
+  "mux": { "mode": "auto", "audioMode": "shift" },
+  "concurrency": 2,
+  "overrides": {}
+}

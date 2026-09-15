@@ -1,0 +1,18 @@
+# 产物与调试中间件（含用户素材画面，绝不入库）
+test/out/
+成片/
+*.mp4
+*.mov
+*.mp3
+*.srt
+*.ass
+
+# 个人配置（含本机绝对路径）
+dragon.json
+revenge-*.json
+test-crown.json
+preset.json
+
+node_modules/
+.DS_Store
+test/fixtures/

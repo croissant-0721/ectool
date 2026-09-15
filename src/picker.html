@@ -1,0 +1,264 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>集数位置拖框器</title>
+<style>
+  :root { --bg:#15171c; --panel:#1d2028; --line:#2e323c; --fg:#e6e8ec; --dim:#9aa1ad; --acc:#e8c170; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.5 -apple-system,"PingFang SC",sans-serif; }
+  .wrap { display:flex; gap:18px; padding:18px; align-items:flex-start; }
+  .stage { position:relative; flex:0 0 auto; }
+  .stage img { display:block; border-radius:6px; user-select:none; -webkit-user-drag:none; }
+  #box { position:absolute; border:1.5px solid var(--acc); background:rgba(232,193,112,.10);
+         cursor:move; box-shadow:0 0 0 9999px rgba(0,0,0,.34); }
+  .h { position:absolute; width:11px; height:11px; background:var(--acc); border-radius:2px; }
+  .h.nw{left:-6px;top:-6px;cursor:nwse-resize} .h.ne{right:-6px;top:-6px;cursor:nesw-resize}
+  .h.sw{left:-6px;bottom:-6px;cursor:nesw-resize} .h.se{right:-6px;bottom:-6px;cursor:nwse-resize}
+  .h.n{left:calc(50% - 5px);top:-6px;cursor:ns-resize} .h.s{left:calc(50% - 5px);bottom:-6px;cursor:ns-resize}
+  .h.w{left:-6px;top:calc(50% - 5px);cursor:ew-resize} .h.e{right:-6px;top:calc(50% - 5px);cursor:ew-resize}
+  .panel { flex:1 1 340px; min-width:330px; max-width:430px; background:var(--panel);
+           border:1px solid var(--line); border-radius:8px; padding:14px; }
+  h3 { margin:0 0 10px; font-size:12px; letter-spacing:.08em; color:var(--dim); text-transform:uppercase; font-weight:600; }
+  .row { display:flex; gap:8px; margin-bottom:8px; align-items:center; }
+  .row > label { flex:0 0 62px; color:var(--dim); }
+  input, select { background:#12141a; color:var(--fg); border:1px solid var(--line);
+                  border-radius:5px; padding:5px 7px; font:inherit; width:100%; min-width:0; }
+  input[type=color] { padding:2px; height:29px; }
+  input[type=range] { padding:0; }
+  .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .grid4 label { display:block; color:var(--dim); font-size:11px; margin-bottom:2px; }
+  .anchors { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin-bottom:8px; }
+  .anchors button { padding:7px 2px; font-size:11px; background:#12141a; color:var(--dim);
+                    border:1px solid var(--line); border-radius:5px; cursor:pointer; }
+  .anchors button[aria-pressed=true] { background:var(--acc); color:#1a1207; border-color:var(--acc); font-weight:600; }
+  hr { border:0; border-top:1px solid var(--line); margin:14px 0; }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; }
+  button.act { flex:1; padding:9px; border-radius:6px; border:1px solid var(--line);
+               background:#262a34; color:var(--fg); cursor:pointer; font:inherit; }
+  button.act.pri { background:var(--acc); color:#1a1207; border-color:var(--acc); font-weight:600; }
+  button.act:disabled { opacity:.45; cursor:default; }
+  pre { background:#12141a; border:1px solid var(--line); border-radius:6px; padding:9px;
+        font:11px/1.45 ui-monospace,Menlo,monospace; color:#b9c0cc; overflow-x:auto; margin:0; }
+  .stat { color:var(--dim); font-size:11px; min-height:16px; margin-top:8px; }
+  .stat.busy { color:var(--acc); } .stat.err { color:#ff8b8b; } .stat.ok { color:#8fd48f; }
+  .chk { display:flex; align-items:center; gap:6px; color:var(--dim); }
+  .chk input { width:auto; }
+</style>
+
+<div class="wrap">
+  <div class="stage" id="stage">
+    <img id="bg" alt="">
+    <div id="box"><i class="h nw"data-d=nw></i><i class="h n"data-d=n></i><i class="h ne"data-d=ne></i
+      ><i class="h w"data-d=w></i><i class="h e"data-d=e></i
+      ><i class="h sw"data-d=sw></i><i class="h s"data-d=s></i><i class="h se"data-d=se></i></div>
+  </div>
+
+  <div class="panel">
+    <h3>选框</h3>
+    <div class="grid4">
+      <div><label>x</label><input id=bx type=number></div>
+      <div><label>y</label><input id=by type=number></div>
+      <div><label>w</label><input id=bw type=number></div>
+      <div><label>h</label><input id=bh type=number></div>
+    </div>
+
+    <hr><h3>文字</h3>
+    <div class="row"><label>模板</label><input id=tpl></div>
+    <div class="row"><label>预览集数</label><input id=ep type=number min=0 style="max-width:80px">
+      <span id=sample style="color:var(--acc);font-weight:600"></span></div>
+    <div class="row"><label>字体</label><select id=font></select></div>
+    <div class="row"><label>颜色</label><input id=color type=color style="max-width:56px">
+      <input id=colorHex style="max-width:100px"><span class=chk><input id=autoSize type=checkbox><label for=autoSize>自动字号</label></span></div>
+    <div class="row"><label>字号</label><input id=size type=number min=8 max=2000></div>
+    <div class="row"><label>填充率</label><input id=fill type=range min=0.3 max=1 step=0.01>
+      <span id=fillV style="flex:0 0 38px;color:var(--dim)"></span></div>
+    <div class="row"><label>对齐</label>
+      <select id=align><option value=left>左</option><option value=center>中</option><option value=right>右</option></select>
+      <select id=valign><option value=top>上</option><option value=middle>中</option><option value=bottom>下</option></select></div>
+    <div class="row"><label>描边</label><input id=stroke type=number min=0 max=40 style="max-width:70px">
+      <input id=strokeColor type=color style="max-width:56px"><span style="color:var(--dim);font-size:11px">px / 颜色</span></div>
+
+    <hr><h3>输出写法</h3>
+    <div class="anchors" id=anchors></div>
+    <div class="row"><span class=chk><input id=useAnchor type=checkbox><label for=useAnchor>用锚点+边距</label></span>
+      <span class=chk><input id=usePct type=checkbox><label for=usePct>百分比（跨尺寸母版通用）</label></span></div>
+    <pre id=out></pre>
+
+    <hr>
+    <div class="btns">
+      <button class="act pri" id=btnRender>真实渲染预览</button>
+      <button class="act" id=btnSave>保存到 config</button>
+      <button class="act" id=btnCopy>复制 JSON</button>
+    </div>
+    <div class="stat" id=stat></div>
+  </div>
+</div>
+
+<script>
+const BOOT = __BOOTSTRAP__;
+const $ = id => document.getElementById(id);
+const MW = BOOT.master.w, MH = BOOT.master.h;
+const ANCHORS = ['top-left','top','top-right','left','center','right','bottom-left','bottom','bottom-right'];
+const ANCHOR_CN = {'top-left':'左上',top:'上',"top-right":'右上',left:'左',center:'中',right:'右',
+                   'bottom-left':'左下',bottom:'下','bottom-right':'右下'};
+
+let S = {
+  box: { ...BOOT.box },
+  style: { ...BOOT.style },
+  template: BOOT.template, episode: BOOT.episode,
+  anchor: BOOT.anchor || 'bottom-right', useAnchor: !!BOOT.useAnchor, usePct: false,
+};
+let scale = 1, renderSeq = 0, renderTimer = null;
+
+$('bg').src = '/master?' + Date.now();
+$('bg').onload = () => { scale = $('bg').clientWidth / MW; drawBox(); };
+addEventListener('resize', () => { scale = $('bg').clientWidth / MW; drawBox(); });
+
+// ---------- 选框绘制与拖拽 ----------
+function clampBox() {
+  const b = S.box;
+  b.w = Math.max(8, Math.min(MW, Math.round(b.w)));
+  b.h = Math.max(8, Math.min(MH, Math.round(b.h)));
+  b.x = Math.max(0, Math.min(MW - b.w, Math.round(b.x)));
+  b.y = Math.max(0, Math.min(MH - b.h, Math.round(b.y)));
+}
+function drawBox() {
+  clampBox();
+  const e = $('box'), b = S.box;
+  e.style.left = b.x * scale + 'px'; e.style.top = b.y * scale + 'px';
+  e.style.width = b.w * scale + 'px'; e.style.height = b.h * scale + 'px';
+  bx.value = b.x; by.value = b.y; bw.value = b.w; bh.value = b.h;
+  updateOut();
+}
+$('box').addEventListener('pointerdown', ev => {
+  ev.preventDefault();
+  const dir = ev.target.dataset.d || 'move';
+  const sx = ev.clientX, sy = ev.clientY, o = { ...S.box };
+  const move = e => {
+    const dx = (e.clientX - sx) / scale, dy = (e.clientY - sy) / scale;
+    const b = S.box;
+    if (dir === 'move') { b.x = o.x + dx; b.y = o.y + dy; }
+    else {
+      if (dir.includes('w')) { b.x = o.x + dx; b.w = o.w - dx; }
+      if (dir.includes('e')) { b.w = o.w + dx; }
+      if (dir.includes('n')) { b.y = o.y + dy; b.h = o.h - dy; }
+      if (dir.includes('s')) { b.h = o.h + dy; }
+      if (b.w < 8) { b.w = 8; if (dir.includes('w')) b.x = o.x + o.w - 8; }
+      if (b.h < 8) { b.h = 8; if (dir.includes('n')) b.y = o.y + o.h - 8; }
+    }
+    drawBox();
+  };
+  const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); scheduleRender(); };
+  addEventListener('pointermove', move); addEventListener('pointerup', up);
+});
+
+// ---------- 表单 ----------
+for (const id of ['bx','by','bw','bh']) $(id).oninput = () => {
+  S.box = { x:+bx.value||0, y:+by.value||0, w:+bw.value||8, h:+bh.value||8 };
+  drawBox(); scheduleRender();
+};
+BOOT.fonts.forEach(f => {
+  const o = document.createElement('option'); o.value = f.path; o.textContent = f.name; $('font').append(o);
+});
+if (!BOOT.fonts.some(f => f.path === S.style.fontFile)) {
+  const o = document.createElement('option');
+  o.value = S.style.fontFile; o.textContent = S.style.fontFile.split('/').pop() + '（配置中）';
+  $('font').prepend(o);
+}
+const hex = v => '#' + String(v).replace(/^0x/i,'').replace(/^#/,'').padStart(6,'0').slice(-6);
+const ff = v => '0x' + v.replace('#','').toUpperCase();
+
+function syncForm() {
+  tpl.value = S.template; ep.value = S.episode;
+  font.value = S.style.fontFile;
+  color.value = hex(S.style.color); colorHex.value = S.style.color;
+  autoSize.checked = S.style.size === 'auto';
+  size.value = S.style.size === 'auto' ? '' : S.style.size;
+  size.disabled = autoSize.checked;
+  fill.value = S.style.fill; fillV.textContent = (+S.style.fill).toFixed(2);
+  align.value = S.style.align; valign.value = S.style.valign;
+  stroke.value = S.style.strokeWidth || 0; strokeColor.value = hex(S.style.strokeColor || '0x000000');
+  useAnchor.checked = S.useAnchor; usePct.checked = S.usePct; usePct.disabled = !S.useAnchor;
+  sample.textContent = S.template.replace(/\{n(\d)\}/g,(_,w)=>String(S.episode).padStart(+w,'0')).replace(/\{n\}/g,S.episode);
+  updateOut();
+}
+tpl.oninput = () => { S.template = tpl.value; syncForm(); scheduleRender(); };
+ep.oninput = () => { S.episode = +ep.value || 0; syncForm(); scheduleRender(); };
+font.onchange = () => { S.style.fontFile = font.value; scheduleRender(); };
+color.oninput = () => { S.style.color = ff(color.value); colorHex.value = S.style.color; scheduleRender(); };
+colorHex.oninput = () => { S.style.color = colorHex.value; color.value = hex(colorHex.value); scheduleRender(); };
+autoSize.onchange = () => { S.style.size = autoSize.checked ? 'auto' : (+size.value || 80); syncForm(); scheduleRender(); };
+size.oninput = () => { if (!autoSize.checked) { S.style.size = +size.value || 80; scheduleRender(); } };
+fill.oninput = () => { S.style.fill = +fill.value; fillV.textContent = (+fill.value).toFixed(2); scheduleRender(); };
+align.onchange = () => { S.style.align = align.value; scheduleRender(); };
+valign.onchange = () => { S.style.valign = valign.value; scheduleRender(); };
+stroke.oninput = () => { S.style.strokeWidth = +stroke.value || 0; scheduleRender(); };
+strokeColor.oninput = () => { S.style.strokeColor = ff(strokeColor.value); scheduleRender(); };
+useAnchor.onchange = () => { S.useAnchor = useAnchor.checked; syncForm(); };
+usePct.onchange = () => { S.usePct = usePct.checked; updateOut(); };
+
+ANCHORS.forEach(a => {
+  const b = document.createElement('button');
+  b.textContent = ANCHOR_CN[a]; b.onclick = () => { S.anchor = a; paintAnchors(); updateOut(); };
+  b.dataset.a = a; $('anchors').append(b);
+});
+function paintAnchors() {
+  [...$('anchors').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.a === S.anchor));
+}
+
+// ---------- 输出 JSON ----------
+function boxOut() {
+  if (!S.useAnchor) return { ...S.box };
+  const b = S.box, a = S.anchor;
+  const hOf = {'top-left':'left',left:'left','bottom-left':'left',top:'center',center:'center',bottom:'center','top-right':'right',right:'right','bottom-right':'right'}[a];
+  const vOf = {'top-left':'top',top:'top','top-right':'top',left:'middle',center:'middle',right:'middle','bottom-left':'bottom',bottom:'bottom','bottom-right':'bottom'}[a];
+  let mx = hOf==='left' ? b.x : hOf==='right' ? MW-b.w-b.x : b.x-(MW-b.w)/2;
+  let my = vOf==='top' ? b.y : vOf==='bottom' ? MH-b.h-b.y : b.y-(MH-b.h)/2;
+  const pc = (v,d) => (Math.round(v/d*10000)/100) + '%';
+  return S.usePct
+    ? { anchor:a, margin:{x:pc(mx,MW), y:pc(my,MH)}, size:{w:pc(b.w,MW), h:pc(b.h,MH)} }
+    : { anchor:a, margin:{x:Math.round(mx), y:Math.round(my)}, size:{w:b.w, h:b.h} };
+}
+function configOut() {
+  return { box: boxOut(), text: { template:S.template, fontFile:S.style.fontFile, color:S.style.color,
+    size:S.style.size, fill:S.style.fill, align:S.style.align, valign:S.style.valign,
+    strokeWidth:S.style.strokeWidth, strokeColor:S.style.strokeColor } };
+}
+function updateOut() { $('out').textContent = JSON.stringify(configOut(), null, 2); }
+
+// ---------- 真实渲染（调 ffmpeg，非浏览器近似） ----------
+function scheduleRender() { clearTimeout(renderTimer); renderTimer = setTimeout(doRender, 450); }
+async function doRender() {
+  const seq = ++renderSeq;
+  setStat('渲染中…', 'busy');
+  try {
+    const r = await fetch('/render', { method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({ box:S.box, style:S.style, template:S.template, episode:S.episode }) });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    const info = JSON.parse(r.headers.get('x-render-info') || '{}');
+    const blob = await r.blob();
+    if (seq !== renderSeq) return;
+    const old = $('bg').src;
+    $('bg').src = URL.createObjectURL(blob);
+    if (old.startsWith('blob:')) URL.revokeObjectURL(old);
+    setStat(`已渲染 · 字号 ${info.fontSize} · 墨迹 ${info.ink?.w}×${info.ink?.h}`, 'ok');
+  } catch (e) { if (seq === renderSeq) setStat('渲染失败：' + e.message, 'err'); }
+}
+function setStat(t, c) { $('stat').textContent = t; $('stat').className = 'stat ' + (c || ''); }
+
+$('btnRender').onclick = doRender;
+$('btnCopy').onclick = async () => {
+  await navigator.clipboard.writeText(JSON.stringify(configOut(), null, 2));
+  setStat('已复制到剪贴板', 'ok');
+};
+$('btnSave').onclick = async () => {
+  setStat('保存中…', 'busy');
+  try {
+    const r = await fetch('/save', { method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify(configOut()) });
+    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+    setStat('已写回 ' + BOOT.configPath, 'ok');
+  } catch (e) { setStat('保存失败：' + e.message, 'err'); }
+};
+
+paintAnchors(); syncForm(); drawBox(); doRender();
+</script>

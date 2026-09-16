@@ -69,6 +69,7 @@ function readProject(dir, { defaults = {} } = {}) {
 
   const cfg = {
     ...defaults, ...preset,
+    title: preset.title || defaults.title || path.basename(dir),
     master,
     input: videos,
     output: path.join(dir, '成片'),

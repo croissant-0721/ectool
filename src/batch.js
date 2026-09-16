@@ -21,6 +21,10 @@ const DEFAULTS = {
   cover: { duration: null, attachedPic: false },
   mux: { mode: 'auto', audioMode: 'shift' },
   outro: { enabled: false },
+  // 产物命名模板：{title} 剧名（默认取素材文件夹名）、{n}/{n2}/{n3} 集数
+  // 留空则沿用源文件名。此项不参与指纹计算——改名不影响画面，不该触发重渲。
+  outputName: null,
+  title: null,
   subtitles: { enabled: false, language: 'English', dir: null, styleFrom: null, style: {} },
   bgm: { ...bgmMod.DEFAULTS },
   overrides: {},
@@ -68,6 +72,21 @@ async function listInputs(cfg) {
     .map(n => path.join(cfg.input, n));
 }
 
+
+// 产物文件名：按 outputName 模板生成，留空则沿用源文件名
+function outputBasename(cfg, row) {
+  const src = path.basename(row.file);
+  if (!cfg.outputName || row.episode == null) return src;
+  const ext = path.extname(src) || '.mp4';
+  const title = cfg.title || path.basename(cfg.baseDir || '');
+  const name = String(cfg.outputName)
+    .replace(/\{title\}/g, title)
+    .replace(/\{n(\d)\}/g, (_, w) => String(row.episode).padStart(Number(w), '0'))
+    .replace(/\{n\}/g, String(row.episode))
+    .replace(/[\/\\]/g, '_');          // 防止模板里带出路径分隔符
+  return name.endsWith(ext) ? name : name + ext;
+}
+
 async function plan(cfg) {
   const files = await listInputs(cfg);
   const rows = detectBatch(files, cfg.overrides);
@@ -75,7 +94,7 @@ async function plan(cfg) {
   const mAspect = master.w / master.h;
 
   for (const r of rows) {
-    r.outPath = path.join(cfg.output, path.basename(r.file));
+    r.outPath = path.join(cfg.output, outputBasename(cfg, r));
     r.sameAsInput = path.resolve(r.outPath) === path.resolve(r.file);
     r.text = r.episode == null ? null : renderTemplate(cfg.text.template, r.episode);
     try {
@@ -116,6 +135,18 @@ async function plan(cfg) {
       : r.srtError ? r.srtError
       : null;
   }
+  // 输出名冲突：模板可能让两集算出同一个文件名，绝不能互相覆盖
+  const byName = new Map();
+  for (const r of rows) {
+    if (r.blocked) continue;
+    const k = path.basename(r.outPath);
+    (byName.get(k) || byName.set(k, []).get(k)).push(r);
+  }
+  for (const [name, list] of byName) {
+    if (list.length < 2) continue;
+    list.forEach(r => { r.blocked = `输出名冲突「${name}」（${list.length} 个源指向同一文件名）`; });
+  }
+
   // 同一集出现多个视频（如 (1)/(2) 重复下载）→ 取 mtime 最新的，其余标记跳过。
   // 全自动流水线不能让两个源写到同一个输出名。
   const byEp = new Map();
@@ -343,4 +374,4 @@ async function runBatch(cfg, { onEvent = () => {}, force = false, limit = 0 } = 
            skippedBlocked: planned.rows.filter(r => r.blocked) };
 }
 
-module.exports = { normalizeConfig, plan, runBatch, listInputs, DEFAULTS };
+module.exports = { normalizeConfig, plan, runBatch, listInputs, outputBasename, DEFAULTS };

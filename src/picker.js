@@ -101,8 +101,11 @@ async function startPicker({ cfg, configPath, port = 7788, open = true }) {
       }
       if (req.method === 'POST' && url.pathname === '/save') {
         const b = JSON.parse((await readBody(req)).toString('utf8'));
-        const raw = JSON.parse(await fsp.readFile(configPath, 'utf8'));
+        let raw = {};
+        try { raw = JSON.parse(await fsp.readFile(configPath, 'utf8')); } catch {}
         raw.box = b.box;
+        // 标记「这部剧的位置由人确认过」——make 靠它区分未配置与已配置
+        raw._positionedAt = new Date().toISOString();
         raw.text = { ...(raw.text || {}), ...b.text };
         await fsp.writeFile(configPath, JSON.stringify(raw, null, 2) + '\n', 'utf8');
         return json(res, 200, { ok: true });

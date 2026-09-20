@@ -323,14 +323,22 @@ async function verify({ info, coverPng, out, coverDuration, expect = null }) {
   if (expect && expect.subs) {
     const { probeTime, band = 0.32 } = expect.subs;
     const bh = Math.round(info.frameH * band);
-    const crop = `crop=${info.frameW}:${bh}:0:${info.frameH - bh},scale=32:16`;
+    // 数「显著变化的像素个数」而不是求平均差：文字只占字幕区一小块，
+    // 平均下来会被字少的集稀释（实测 10 条字幕的集只有 1.1/255，被误判为未渲染）。
+    const crop = `crop=${info.frameW}:${bh}:0:${info.frameH - bh},scale=160:80`;
     try {
       const [a, b] = await Promise.all([
         signature(out, crop, coverDuration + probeTime),
         signature(info.file, crop, probeTime),
       ]);
-      const d = meanAbsDiff(a, b);
-      if (d < 2) problems.push(`字幕未渲染（字幕区像素差仅 ${d.toFixed(2)}/255，疑似字体未匹配）`);
+      let changed = 0;
+      if (a.length && a.length === b.length) {
+        for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 30) changed++;
+      }
+      const pct = a.length ? changed / a.length * 100 : 0;
+      if (pct < 0.4) {
+        problems.push(`字幕未渲染（字幕区仅 ${changed}/${a.length} 像素显著变化 = ${pct.toFixed(2)}%，疑似字体未匹配）`);
+      }
     } catch (e) {
       problems.push(`字幕校验失败: ${e.message.split('\n')[0]}`);
     }
@@ -341,10 +349,12 @@ async function verify({ info, coverPng, out, coverDuration, expect = null }) {
   if (expect && expect.bgm) {
     const { expectedDeltaDb, window } = expect.bgm;
     try {
+      // 必须用 RMS 而非 ebur128 的 integrated：后者带门限，叠加一层安静垫底音乐
+      // 会改变哪些区块通过相对门限，读数可能反而变低（实测出现过 -2.0dB）。
       const lufs = async (f, at, dur) => {
         const { stderr } = await ff(['-ss', at.toFixed(3), '-t', String(dur), '-i', f,
-          '-af', 'ebur128', '-f', 'null', '-']);
-        const m = [...stderr.matchAll(/I:\s+(-?[\d.]+)\s+LUFS/g)].pop();
+          '-af', 'volumedetect', '-f', 'null', '-']);
+        const m = stderr.match(/mean_volume:\s*(-?[\d.]+)/);
         return m ? Number(m[1]) : null;
       };
       const [src, got] = await Promise.all([

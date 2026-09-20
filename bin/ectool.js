@@ -59,6 +59,7 @@ const USAGE = `用法:
   ectool plan    -c <config.json>            仅显示识别结果与警告，不写任何文件
   ectool preview -c <config.json> [-e N] [-o out.png]   渲染单张封面预览
   ectool make    <素材文件夹>                  一键出片：自动识别封面/原片/字幕/BGM，无需配置文件
+                 [--use-default-position]     跳过「集数位置未确认」的阻断
   ectool pick    <素材文件夹> | -c <config.json>  拖框器：调集数位置并写回 preset.json
   ectool run     -c <config.json> [--force] [--limit N] 执行批量处理
 
@@ -173,6 +174,7 @@ async function main() {
       limit: { type: 'string' },
       port: { type: 'string' },
       'no-open': { type: 'boolean', default: false },
+      'use-default-position': { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
   });
@@ -204,8 +206,17 @@ async function main() {
     const { cfg: raw, found, hasPreset, presetPath } = readProject(dir, { defaults: base });
     console.log(C.bold(`\n素材文件夹: ${dir}`));
     describeProject(found).forEach(l => console.log('  ' + l));
-    if (!hasPreset) {
-      console.log(C.yellow(`  preset.json: 无 —— 用内置默认样式（跑 ectool pick "${dir}" 可视化调整集数位置）`));
+    const positioned = hasPreset && fsSync.existsSync(presetPath)
+      && !!(JSON.parse(fsSync.readFileSync(presetPath, 'utf8'))._positionedAt);
+    if (!positioned && !v['use-default-position']) {
+      console.log(C.red(`\n  集数位置尚未为这部剧确认过。`));
+      console.log(`  封面是 ${path.basename(found.master)}，内置默认会把集数放在右下角，多半会压到标题上。\n`);
+      console.log(`  先定位置：  ${C.bold(`ectool pick "${dir}"`)}`);
+      console.log(C.dim(`  或坚持用默认位置： ectool make "${dir}" --use-default-position\n`));
+      return 2;
+    }
+    if (!positioned) {
+      console.log(C.yellow(`  ⚠ 使用内置默认集数位置（未经确认）`));
     }
     console.log('');
     const cfg = normalizeConfig(raw, dir);
@@ -221,10 +232,8 @@ async function main() {
       const dir = path.resolve(target);
       const { cfg: raw, presetPath } = readProject(dir, { defaults: deepMerge(BUILTIN, loadGlobalDefaults()) });
       const cfg = normalizeConfig(raw, dir);
-      if (!fsSync.existsSync(presetPath)) {
-        fsSync.writeFileSync(presetPath, JSON.stringify({ box: BUILTIN.box, text: BUILTIN.text }, null, 2) + '\n');
-        console.log(C.dim(`已创建 ${presetPath}`));
-      }
+      // 不在启动时写 preset：一旦写了，「没配过」就和「配成默认值」无法区分，
+      // make 会以为你确认过位置而直接合成。只有你点保存才落盘。
       const { url } = await startPicker({ cfg, configPath: presetPath,
         port: v.port ? Number(v.port) : 7788, open: !v['no-open'] });
       console.log(`拖框器: ${C.bold(url)}`);

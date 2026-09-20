@@ -220,6 +220,31 @@ async function runBatch(cfg, { onEvent = () => {}, force = false, limit = 0 } = 
   }
   const assDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ectool-ass-'));
 
+  // outputName 变化时，已有产物只需改名，不该重渲。
+  // 按「源文件名」或「集数」把旧清单条目对上当前该有的输出名。
+  const renames = [];
+  for (const r of planned.rows) {
+    if (r.blocked || r.episode == null) continue;
+    const want = path.basename(r.outPath);
+    if (manifest[want]) continue;                       // 已经是目标名
+    const oldKey = Object.keys(manifest).find(k => {
+      const m = manifest[k];
+      return k !== want && (m.srcFile === path.basename(r.file) || m.episode === r.episode);
+    });
+    if (!oldKey) continue;
+    const from = path.join(cfg.output, oldKey);
+    const to = r.outPath;
+    if (!fsSync.existsSync(from) || fsSync.existsSync(to)) continue;
+    renames.push([oldKey, want]);
+    await fs.rename(from, to);
+    manifest[want] = { ...manifest[oldKey], srcFile: path.basename(r.file) };
+    delete manifest[oldKey];
+  }
+  if (renames.length) {
+    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+    onEvent({ status: 'note', reason: `产物按新命名模板改名 ${renames.length} 个（未重渲）` });
+  }
+
   // 封面只取决于文字内容，按文字缓存（含并发去重）
   const cache = new Map();
   const getCover = text => {
@@ -333,6 +358,7 @@ async function runBatch(cfg, { onEvent = () => {}, force = false, limit = 0 } = 
     if (res?.status !== 'ok') continue;
     manifest[path.basename(res.row.outPath)] = {
       fingerprint: styleFingerprint,
+      srcFile: path.basename(res.row.file),
       srcMtime: fsSync.statSync(res.row.file).mtimeMs,
       srt: res.row.srt || null,
       bgm: res.row.bgm || null,

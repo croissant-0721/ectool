@@ -83,11 +83,13 @@ function readProject(dir, { defaults = {} } = {}) {
       enabled: bgmFiles.length > 0,
       dir: bgmDirs.length === 1 ? bgmDirs[0] : dir,
     },
-    outro: {
-      ...(defaults.outro || {}), ...(preset.outro || {}),
-      enabled: true,
-      sfxPath: sfxFiles[0] || (defaults.outro || {}).sfxPath || null,
-    },
+    outro: (() => {
+      const o = { ...(defaults.outro || {}), ...(preset.outro || {}), enabled: true };
+      // 项目文件夹里的音效优先；都没有就别写这个键，留给 outro.js 里自带的「咚」
+      const sfx = sfxFiles[0] || (defaults.outro || {}).sfxPath || (preset.outro || {}).sfxPath;
+      if (sfx) o.sfxPath = sfx; else delete o.sfxPath;
+      return o;
+    })(),
   };
 
   return {

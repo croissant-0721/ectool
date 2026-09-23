@@ -7,6 +7,9 @@ test/out/
 *.srt
 *.ass
 
+# 但 assets/ 是随仓库分发的自带素材，不受上面那几条排除
+!assets/**
+
 # 个人配置（含本机绝对路径）
 dragon.json
 revenge-*.json

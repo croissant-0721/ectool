@@ -128,6 +128,17 @@ async function srtToAss({ srtPath, out, videoW, videoH, style = {} }) {
 
 // ---------- 从剪映「组合预设」里读字幕样式 ----------
 // 参数散落在两处：materials.texts[0] 存样式，tracks 里的 text segment 存位置/缩放
+// styleFrom 的统一入口：.json 当作固化好的纯样式读，目录当作剪映预设解析
+function loadStyleFrom(src) {
+  const fs = require('node:fs');
+  if (/\.json$/i.test(src)) {
+    const j = JSON.parse(fs.readFileSync(src, 'utf8'));
+    const style = j.style || j;
+    return { style, canvas: j._画布 || j.canvas || null, raw: j.raw || null };
+  }
+  return capcutPresetToStyle(src);
+}
+
 function capcutPresetToStyle(presetDir) {
   const fs = require('node:fs');
   const raw = JSON.parse(fs.readFileSync(path.join(presetDir, 'preset_draft/draft_content.json'), 'utf8'));
@@ -332,4 +343,4 @@ function pickCapCutFont(fontPath, language) {
   return fs.existsSync(cand) ? cand : fontPath;
 }
 
-module.exports = { srtToAss, calibrateFontScale, pickCapCutFont, CAPCUT_FONT_BY_LANG, parseSrt, assColor, capcutPresetToStyle, fontFamilyOf, discoverSubtitle, ALIGN, DEFAULT_STYLE };
+module.exports = { srtToAss, calibrateFontScale, pickCapCutFont, CAPCUT_FONT_BY_LANG, parseSrt, assColor, capcutPresetToStyle, loadStyleFrom, fontFamilyOf, discoverSubtitle, ALIGN, DEFAULT_STYLE };

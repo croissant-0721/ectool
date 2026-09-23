@@ -86,7 +86,13 @@ function printPlan(planned, cfg) {
   catch { bx = { x: '?', y: '?', w: '?', h: '?' }; }
   console.log(C.bold(`\n母版 ${cfg.master}`));
   if (cfg.outro?.enabled) {
-    console.log(C.dim(`  片尾: 定格 ${cfg.outro.freezeDuration ?? 1}s · 星火 ${(cfg.outro.spark?.count) ?? 190} 粒 · 音效 ${cfg.outro.sfxPath ? path.basename(cfg.outro.sfxPath) : '无'}${cfg.outro.trimBlackTail === false ? '' : ' · 自动裁黑尾'}`));
+    const OD = require('../src/outro').DEFAULTS;
+    // sfxPath / sparkSequence 没写时会落到 outro.js 的自带素材上，这里得照着算，否则显示「无」是假的
+    const sfx = cfg.outro.sfxPath === undefined ? OD.sfxPath : cfg.outro.sfxPath;
+    const spark = (cfg.outro.sparkSource ?? OD.sparkSource) === 'sequence'
+      ? `序列 ${path.basename((cfg.outro.sparkSequence || OD.sparkSequence).dir || '?')}`
+      : `粒子 ${(cfg.outro.spark?.count) ?? 190} 颗`;
+    console.log(C.dim(`  片尾: 定格 ${cfg.outro.freezeDuration ?? 1}s · 星火 ${spark} · 音效 ${sfx ? path.basename(sfx) : '无'}${cfg.outro.trimBlackTail === false ? '' : ' · 自动裁黑尾'}`));
   }
   console.log(`  ${master.w}x${master.h}  比例 ${mAspect.toFixed(4)}   选框 ${bx.x},${bx.y} ${bx.w}x${bx.h}${cfg.box.anchor ? `（锚点 ${cfg.box.anchor}）` : ''}   模板 "${cfg.text.template}"  擦除 ${cfg.erase.mode}\n`);
 

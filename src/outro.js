@@ -8,6 +8,8 @@ const { renderSparkSegment } = require('./sparks');
 
 // 仓库自带的星火序列（63 张 500x500 黑底 PNG），随代码分发，换机无需配置
 const BUNDLED_SPARKS = path.join(__dirname, '..', 'assets', 'sparks');
+// 片尾撞击音效「咚」，同样随仓库分发
+const BUNDLED_SFX = path.join(__dirname, '..', 'assets', 'sfx', 'outro-dong.mp3');
 
 // B「大而散」—— 用户选定的风格
 const SPARK_PRESET_B = {
@@ -21,6 +23,7 @@ const DEFAULTS = {
   blackThreshold: 20,     // YAVG 阈值，<= 视为黑帧
   maxTrimSeconds: 2.0,    // 黑尾裁剪上限，防止异常素材被切掉一大段
   scanSeconds: 3.0,
+  sfxPath: BUNDLED_SFX,   // 自带「咚」；显式写 null 则不加音效
   sfxTargetPeakDb: -1.5,  // 音效按真实浮点峰值归一化到这个电平（不用 alimiter，它拦不住瞬态）
   sparkOrigin: null,      // 默认画面中心偏上
   sparkSource: 'sequence',    // 'procedural' | 'sequence'（默认用自带序列，改 procedural 走程序化粒子）

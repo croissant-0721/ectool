@@ -1,0 +1,30 @@
+{
+  "_说明": "由剪映预设「我的预设6」解析而来，已固化成纯数据，不再依赖剪映安装。fontFile 缺失时自动回退到 DEFAULT_STYLE 的字体。",
+  "_来源": "JianyingPro/User Data/Presets/Combination/Presets/我的预设6",
+  "_画布": {
+    "w": 480,
+    "h": 854
+  },
+  "style": {
+    "fontFile": "/Applications/VideoFusion-macOS.app/Contents/Resources/Font/SystemFont/zh-hans.ttf",
+    "fontName": "CapCutSubtitle",
+    "fontSize": 30,
+    "color": "#ffffff",
+    "alpha": 1,
+    "outline": 2.4,
+    "outlineColor": "#000000",
+    "outlineAlpha": 1,
+    "shadow": 0,
+    "shadowColor": "#000000",
+    "shadowAlpha": 0,
+    "box": null,
+    "bold": false,
+    "italic": false,
+    "align": "middle-center",
+    "pos": {
+      "x": 0.5,
+      "y": 0.734192037470726
+    },
+    "maxWidth": 0.82
+  }
+}

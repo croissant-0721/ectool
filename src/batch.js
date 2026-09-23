@@ -9,7 +9,7 @@ const { muxCover } = require('./mux');
 const { prepareOutro } = require('./outro');
 const bgmMod = require('./bgm');
 const crypto = require('node:crypto');
-const { srtToAss, capcutPresetToStyle, fontFamilyOf, discoverSubtitle,
+const { srtToAss, loadStyleFrom, fontFamilyOf, discoverSubtitle, DEFAULT_STYLE,
         calibrateFontScale, pickCapCutFont } = require('./subs');
 const os = require('node:os');
 
@@ -25,7 +25,8 @@ const DEFAULTS = {
   // 留空则沿用源文件名。此项不参与指纹计算——改名不影响画面，不该触发重渲。
   outputName: null,
   title: null,
-  subtitles: { enabled: false, language: 'English', dir: null, styleFrom: null, style: {} },
+  subtitles: { enabled: false, language: 'English', dir: null,
+               styleFrom: path.join(__dirname, '..', 'assets', 'subtitle-style.json'), style: {} },
   bgm: { ...bgmMod.DEFAULTS },
   overrides: {},
 };
@@ -55,7 +56,6 @@ function normalizeConfig(raw, baseDir) {
   if (cfg.subtitles.dir) cfg.subtitles.dir = abs(cfg.subtitles.dir);
   if (cfg.subtitles.styleFrom) cfg.subtitles.styleFrom = abs(cfg.subtitles.styleFrom);
   if (cfg.bgm.dir) cfg.bgm.dir = abs(cfg.bgm.dir);
-  if (cfg.outro.enabled && cfg.outro.sfxPath === undefined) cfg.outro.sfxPath = null;
   if (!cfg.master) throw new Error('config.master 必填');
   if (!cfg.input) throw new Error('config.input 必填');
   if (!cfg.output) throw new Error('config.output 必填');
@@ -206,11 +206,17 @@ async function runBatch(cfg, { onEvent = () => {}, force = false, limit = 0 } = 
   let subStyle = null, fontsdir = null;
   if (cfg.subtitles.enabled) {
     let base = {};
-    if (cfg.subtitles.styleFrom) base = capcutPresetToStyle(cfg.subtitles.styleFrom).style;
+    if (cfg.subtitles.styleFrom) base = loadStyleFrom(cfg.subtitles.styleFrom).style;
     subStyle = { ...base, ...(cfg.subtitles.style || {}) };
     // 剪映按文种分字体，预设里的 font_path 未必是目标语言那支
     if (subStyle.fontFile && !(cfg.subtitles.style || {}).fontFile) {
       subStyle.fontFile = pickCapCutFont(subStyle.fontFile, cfg.subtitles.language);
+    }
+    if (subStyle.fontFile && !fsSync.existsSync(subStyle.fontFile)) {
+      console.error(`  ⚠ 字幕字体不存在，回退到默认字体: ${subStyle.fontFile}`);
+      subStyle.fontFile = null;
+      // 家族名也得换 —— 'CapCutSubtitle' 是随预设编出来的名字，libass 认不出
+      if (!(cfg.subtitles.style || {}).fontName) subStyle.fontName = DEFAULT_STYLE.fontName;
     }
     if (subStyle.fontFile) {
       subStyle.fontName = fontFamilyOf(subStyle.fontFile);

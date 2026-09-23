@@ -32,7 +32,7 @@ const BUILTIN = {
   subtitles: { language: 'English' },
   outro: {
     freezeDuration: 1.0, trimBlackTail: true, blackThreshold: 20,
-    sfxTargetPeakDb: -1.5, sparkSource: 'procedural',
+    sfxTargetPeakDb: -1.5, sparkSource: 'sequence',
   },
   bgm: { levelRatio: 0.2, moodPriority: ['悬疑', '紧张', '反击'], fadeIn: 1.5, fadeOut: 2.0 },
   mux: { mode: 'auto', audioMode: 'shift' },

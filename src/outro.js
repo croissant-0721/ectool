@@ -6,6 +6,9 @@ const fs = require('node:fs');
 const { ff, probeJson } = require('./ffmpeg');
 const { renderSparkSegment } = require('./sparks');
 
+// 仓库自带的星火序列（63 张 500x500 黑底 PNG），随代码分发，换机无需配置
+const BUNDLED_SPARKS = path.join(__dirname, '..', 'assets', 'sparks');
+
 // B「大而散」—— 用户选定的风格
 const SPARK_PRESET_B = {
   count: 190, speed: 1000, gravity: 700, drag: 1.1,
@@ -20,11 +23,11 @@ const DEFAULTS = {
   scanSeconds: 3.0,
   sfxTargetPeakDb: -1.5,  // 音效按真实浮点峰值归一化到这个电平（不用 alimiter，它拦不住瞬态）
   sparkOrigin: null,      // 默认画面中心偏上
-  sparkSource: 'procedural',  // 'procedural' | 'sequence'
+  sparkSource: 'sequence',    // 'procedural' | 'sequence'（默认用自带序列，改 procedural 走程序化粒子）
   spark: SPARK_PRESET_B,
-  // sequence 模式：直接用外部逐帧序列（如剪映特效缓存里的 PNG 序列）
+  // sequence 模式：逐帧 PNG 序列，默认取仓库自带的那套
   sparkSequence: {
-    dir: null,            // 序列所在目录
+    dir: BUNDLED_SPARKS,  // 序列所在目录，可指向任意黑底 PNG 序列
     prefix: 'a',          // 文件名前缀，形如 a0.png
     ext: 'png',
     scale: 1.6,           // 相对画面宽度的缩放倍数
@@ -100,6 +103,11 @@ async function prepareOutro({ info, cfg }) {
   if (c.sparkSource === 'sequence') {
     const sq = { ...DEFAULTS.sparkSequence, ...(c.sparkSequence || {}) };
     if (!sq.dir) throw new Error('sparkSource=sequence 时必须提供 sparkSequence.dir');
+    if (!fs.existsSync(sq.dir)) {
+      throw new Error(sq.dir === BUNDLED_SPARKS
+        ? `自带星火素材缺失: ${sq.dir}（仓库没拉全？改 outro.sparkSource 为 "procedural" 可用内置粒子）`
+        : `星火序列目录不存在: ${sq.dir}`);
+    }
     const re = new RegExp(`^${sq.prefix}(\\d+)\\.${sq.ext}$`);
     const nums = fs.readdirSync(sq.dir).map(n => re.exec(n)).filter(Boolean).map(m => Number(m[1]));
     if (!nums.length) throw new Error(`目录里找不到 ${sq.prefix}N.${sq.ext} 序列: ${sq.dir}`);

@@ -4,7 +4,7 @@
 
 - 封面作为**视频第 1 帧**（平台缩略图直接取它），集数按文件名自动识别并渲进封面
 - 字幕烧进画面（SRT → ASS，样式可从剪映预设读取）
-- 片尾**定格 1 秒 + 撞击音效 + 星火特效**
+- 片尾**定格 1 秒 + 撞击音效 + 星火特效**（星火素材随仓库分发，clone 即用）
 - BGM 混入，音量按**每集人声响度实测**自动定，并做侧链闪避
 
 全程**单次编码**，无中间代；**零 npm 依赖**，只要 `ffmpeg` / `ffprobe` 和 Node ≥ 18。
@@ -83,6 +83,40 @@ node bin/ectool.js make ./我的剧集/    # 出片 → 成片/ + report.json
 
 推荐字幕用 `EP01.srt` 形式。一集匹配到多个候选时按确定性规则排序取第一个，**不会停下来问人**，选择结果写进 `report.json`。
 
+## 星火特效
+
+片尾那一秒的星火有两种来源，由 `outro.sparkSource` 切换：
+
+| 值 | 来源 | 说明 |
+|---|---|---|
+| `sequence`（默认） | `assets/sparks/` | 仓库自带的 63 张 500×500 黑底 PNG，1.7MB，随代码分发 |
+| `procedural` | `src/sparks.js` | 程序化粒子，零素材。确定性 PRNG，同 seed 同结果，可调粒子数/初速/重力/色温 |
+
+**默认走 `sequence`**，所以 clone 下来什么都不配就是同一套观感——不再依赖任何本机路径
+（早期版本指向剪映的效果缓存目录 `~/Library/Containers/com.lemon.lvpro/.../amazingfeature/image`，
+换台机器就失效）。
+
+想换成自己的序列，指向任意黑底 PNG 序列即可：
+
+```json
+"outro": {
+  "sparkSource": "sequence",
+  "sparkSequence": {
+    "dir": "./assets/my-sparks",   // 相对路径按配置文件所在目录解析
+    "prefix": "a", "ext": "png",
+    "scale": 1.6,                  // 相对画面宽度的缩放
+    "blend": "screen",             // 黑底素材用 screen；带 alpha 的用 over
+    "fitToFreeze": true            // 把整段序列压进定格时长
+  }
+}
+```
+
+序列按 `prefix` + 数字 + `ext` 识别（`a0.png`、`a1.png`…），起始编号和帧数自动探测，
+`fitToFreeze` 会据此算出输入帧率把整段铺满定格时长。
+
+> 混合必须在 RGB 空间做。直接在 yuv420p 上 `blend=screen` 会把色度平面也推满，整片发洋红——
+> 滤镜链里因此有几处 `format=gbrp`，别删。
+
 ## 全自动与可追查
 
 没有人工闸门。所有歧义按规则消解，每个决策落到 `成片/report.json`：用了哪个字幕、哪条 BGM（及理由）、增益多少、人声响度实测值、裁了几帧黑尾、走哪条编码路径、耗时。
@@ -135,7 +169,7 @@ node bin/ectool.js make ./我的剧集/    # 出片 → 成片/ + report.json
 
 - `ffmpeg` / `ffprobe`，需编译进 `libass`、`libfreetype`、`libx264`
 - Node.js ≥ 18
-- 星火特效可用内置程序化粒子（无需素材），或指向任意黑底 PNG 序列
+- 星火特效无需额外素材：仓库自带 `assets/sparks/`，也可切内置粒子或指向任意黑底 PNG 序列
 
 ## 许可
 

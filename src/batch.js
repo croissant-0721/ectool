@@ -49,6 +49,9 @@ function normalizeConfig(raw, baseDir) {
   cfg.input = Array.isArray(cfg.input) ? cfg.input.map(abs) : abs(cfg.input);
   cfg.extensions = cfg.extensions.map(e => e.toLowerCase());
   if (cfg.outro.sfxPath) cfg.outro.sfxPath = abs(cfg.outro.sfxPath);
+  if (cfg.outro.sparkSequence?.dir) {
+    cfg.outro.sparkSequence = { ...cfg.outro.sparkSequence, dir: abs(cfg.outro.sparkSequence.dir) };
+  }
   if (cfg.subtitles.dir) cfg.subtitles.dir = abs(cfg.subtitles.dir);
   if (cfg.subtitles.styleFrom) cfg.subtitles.styleFrom = abs(cfg.subtitles.styleFrom);
   if (cfg.bgm.dir) cfg.bgm.dir = abs(cfg.bgm.dir);

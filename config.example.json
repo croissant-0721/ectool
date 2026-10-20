@@ -36,7 +36,8 @@
   },
   "cover": {
     "duration": null,
-    "attachedPic": false
+    "attachedPic": false,
+    "replaceFirstFrame": false
   },
   "subtitles": {
     "enabled": true,

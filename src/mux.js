@@ -23,12 +23,13 @@ function coverChain(info, fmt) {
 
 
 // 源片分支：可选烧入字幕。在 yuv444p 上渲染再降回 420，文字边缘比直接在 420 上画干净
-function sourceChain(info, subs) {
+function sourceChain(info, subs, replaceFirstFrame = false) {
   const parts = [`setsar=${info.sarStr}`];
   if (subs) {
     parts.push('format=yuv444p',
       filter('ass', { filename: subs.assPath, fontsdir: subs.fontsdir || undefined }));
   }
+  if (replaceFirstFrame) parts.push('trim=start_frame=1', 'setpts=PTS-STARTPTS');
   parts.push(`format=${info.pixFmt}`);
   return parts.join(',');
 }
@@ -55,7 +56,7 @@ function videoEncoderArgs(info, opts) {
 // ---------- Path B：整体重编码（稳） ----------
 async function muxReencode({ info, coverPng, out, opts }) {
   const D = opts.coverDuration;
-  const audioMode = info.hasAudio ? (opts.audioMode || 'shift') : 'none';
+  const audioMode = info.hasAudio ? (opts.replaceFirstFrame ? 'nodelay' : (opts.audioMode || 'shift')) : 'none';
 
   const args = ['-loop', '1', '-framerate', info.fpsStr, '-t', String(D), '-i', coverPng,
                 '-i', info.file];
@@ -64,7 +65,7 @@ async function muxReencode({ info, coverPng, out, opts }) {
 
   const fc = [
     `[0:v]${coverChain(info)}[c]`,
-    `[1:v]${sourceChain(info, opts.subs)}[v]`,
+    `[1:v]${sourceChain(info, opts.subs, opts.replaceFirstFrame)}[v]`,
     `[c][v]concat=n=2:v=1:a=0[outv]`,
   ];
   const maps = ['-map', '[outv]'];
@@ -94,9 +95,10 @@ async function muxReencodeWithOutro({ info, coverPng, out, opts, outro }) {
   const D = opts.coverDuration;
   const KEEP = outro.keepDuration;
   const FREEZE = outro.freezeDuration;
-  const TOTAL = D + KEEP + FREEZE;
-  const coverMs = Math.round(D * 1000);
-  const sfxMs = Math.round((D + KEEP) * 1000);
+  const offset = opts.replaceFirstFrame ? 0 : D;
+  const TOTAL = offset + KEEP + FREEZE;
+  const coverMs = Math.round(offset * 1000);
+  const sfxMs = Math.round((offset + KEEP) * 1000);
 
   const seq = outro.sparkSeq;
   const args = [
@@ -120,7 +122,7 @@ async function muxReencodeWithOutro({ info, coverPng, out, opts, outro }) {
 
   const fc = [
     `[0:v]${coverChain(info)}[c]`,
-    `[1:v]${sourceChain(info, opts.subs)}[v]`,
+    `[1:v]${sourceChain(info, opts.subs, opts.replaceFirstFrame)}[v]`,
   ];
   if (seq) {
     fc.push(
@@ -328,7 +330,7 @@ async function verify({ info, coverPng, out, coverDuration, expect = null }) {
     const crop = `crop=${info.frameW}:${bh}:0:${info.frameH - bh},scale=160:80`;
     try {
       const [a, b] = await Promise.all([
-        signature(out, crop, coverDuration + probeTime),
+        signature(out, crop, (expect.sourceOffset ?? coverDuration) + probeTime),
         signature(info.file, crop, probeTime),
       ]);
       let changed = 0;
@@ -359,7 +361,7 @@ async function verify({ info, coverPng, out, coverDuration, expect = null }) {
       };
       const [src, got] = await Promise.all([
         lufs(info.file, window.start, window.dur),
-        lufs(out, window.start + coverDuration, window.dur),
+        lufs(out, window.start + (expect.sourceOffset ?? coverDuration), window.dur),
       ]);
       if (src != null && got != null) {
         const delta = got - src;
@@ -393,18 +395,28 @@ async function verify({ info, coverPng, out, coverDuration, expect = null }) {
 // ---------- 调度：auto 先试 copy，校验不过自动回退 reencode ----------
 async function muxCover({ video, coverPng, out, opts = {} }) {
   const info = opts.info || await probeVideo(video);
-  const coverDuration = opts.coverDuration ?? (1 / info.fps);
+  const replace = opts.replaceFirstFrame === true;
+  if (replace && opts.mode === 'copy') throw new Error('替换首帧需要重编码，请使用 auto 或 reencode');
+  if (replace && opts.coverDuration != null && Math.abs(opts.coverDuration - 1 / info.fps) > 0.000001) {
+    throw new Error('替换模式的封面必须恰好为一帧，请移除 cover.duration');
+  }
+  const coverDuration = replace ? 1 / info.fps : (opts.coverDuration ?? (1 / info.fps));
+  const offset = replace ? 0 : coverDuration;
   const o = { ...opts, coverDuration };
+  if (replace && !opts.encoder) o.encoder = info.vCodec === 'hevc' ? 'libx265' : 'libx264';
+  if (replace && opts.crf == null) o.crf = 16;
+  if (replace && !opts.preset) o.preset = 'slow';
   const attempts = (opts.mode || 'auto') === 'auto' ? ['copy', 'reencode'] : [opts.mode];
 
   await fs.mkdir(path.dirname(path.resolve(out)), { recursive: true });
   const outro = opts.outro || null;
   // 片尾必须重编码（要拼接定格段并混音），Path A 不适用
   // 字幕要烧进画面，Path A 的流拷贝不可能做到
-  const plan = outro ? ['outro'] : (opts.subs ? ['reencode'] : attempts);
-  const expect = (outro || opts.subs || opts.bgm) ? {
-    frameDelta: outro ? 1 - Math.round(outro.trim.seconds * info.fps) + outro.freezeFrames : 1,
-    durationDelta: outro ? coverDuration - outro.trim.seconds + outro.freezeDuration : coverDuration,
+  const plan = outro ? ['outro'] : ((opts.subs || replace) ? ['reencode'] : attempts);
+  const expect = (replace || outro || opts.subs || opts.bgm) ? {
+    frameDelta: (replace ? 0 : 1) + (outro ? -Math.round(outro.trim.seconds * info.fps) + outro.freezeFrames : 0),
+    durationDelta: offset + (outro ? -outro.trim.seconds + outro.freezeDuration : 0),
+    sourceOffset: offset,
     hasAudio: info.hasAudio || !!(outro && outro.sfx),
     subs: opts.subs ? { probeTime: opts.subs.probeTime } : null,
     bgm: opts.bgm && opts.bgm.verify ? opts.bgm.verify : null,

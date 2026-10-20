@@ -18,7 +18,7 @@ const DEFAULTS = {
   concurrency: 2,
   text: { template: '{n2}', color: 'white', size: 'auto', fill: 0.9, align: 'center', valign: 'middle', strokeWidth: 0, strokeColor: 'black' },
   erase: { mode: 'none', padding: 4 },
-  cover: { duration: null, attachedPic: false },
+  cover: { duration: null, attachedPic: false, replaceFirstFrame: false },
   mux: { mode: 'auto', audioMode: 'shift' },
   outro: { enabled: false },
   // 产物命名模板：{title} 剧名（默认取素材文件夹名）、{n}/{n2}/{n3} 集数
@@ -340,6 +340,7 @@ async function runBatch(cfg, { onEvent = () => {}, force = false, limit = 0 } = 
             crf: cfg.mux.crf, preset: cfg.mux.preset, bitrate: cfg.mux.bitrate,
             coverDuration: cfg.cover.duration ?? undefined,
             attachedPic: cfg.cover.attachedPic,
+            replaceFirstFrame: cfg.cover.replaceFirstFrame,
             outro, subs, bgm,
           },
         });

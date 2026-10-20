@@ -19,3 +19,6 @@ preset.json
 node_modules/
 .DS_Store
 test/fixtures/
+
+# 独立换封面的位置与字体偏好
+.ectool-cover.json

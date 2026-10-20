@@ -43,11 +43,11 @@ const renderTpl = (tpl, n) => String(tpl)
   .replace(/\{n(\d)\}/g, (_, w) => String(n).padStart(Number(w), '0'))
   .replace(/\{n\}/g, String(n));
 
-async function startPicker({ cfg, configPath, port = 7788, open = true }) {
+async function startPicker({ cfg, configPath, port = 7788, open = true, onSave, episode = 1 }) {
   const master = await imageSize(cfg.master);
   const page = await fsp.readFile(path.join(__dirname, 'picker.html'), 'utf8');
   const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'ectool-pick-'));
-  let seq = 0;
+  let seq = 0, completed = false;
 
   const bootstrap = {
     configPath,
@@ -63,7 +63,9 @@ async function startPicker({ cfg, configPath, port = 7788, open = true }) {
       strokeWidth: cfg.text.strokeWidth || 0, strokeColor: cfg.text.strokeColor || '0x000000',
     },
     template: cfg.text.template,
-    episode: 1,
+    episode,
+    saveLabel: onSave ? '确认位置并批量换封面' : '保存到 config',
+    completes: !!onSave,
     fonts: await listFonts(cfg.text.fontFile),
   };
 
@@ -100,7 +102,16 @@ async function startPicker({ cfg, configPath, port = 7788, open = true }) {
         return res.end(buf);
       }
       if (req.method === 'POST' && url.pathname === '/save') {
+        if (completed) return json(res, 409, { error: '已经开始换封面，请查看终端进度' });
         const b = JSON.parse((await readBody(req)).toString('utf8'));
+        if (onSave) {
+          completed = true;
+          const check = path.join(tmp, `check${++seq}.png`);
+          try {
+            await renderCover({ master: cfg.master, out: check, box: b.box,
+              text: renderTpl(b.text.template, episode), style: b.text, erase: cfg.erase });
+          } finally { await fsp.rm(check, { force: true }); }
+        }
         let raw = {};
         try { raw = JSON.parse(await fsp.readFile(configPath, 'utf8')); } catch {}
         raw.box = b.box;
@@ -108,10 +119,12 @@ async function startPicker({ cfg, configPath, port = 7788, open = true }) {
         raw._positionedAt = new Date().toISOString();
         raw.text = { ...(raw.text || {}), ...b.text };
         await fsp.writeFile(configPath, JSON.stringify(raw, null, 2) + '\n', 'utf8');
+        if (onSave) res.once('finish', () => onSave({ box: raw.box, text: raw.text }));
         return json(res, 200, { ok: true });
       }
       json(res, 404, { error: 'not found' });
     } catch (e) {
+      if (onSave && req.url === '/save') completed = false;
       json(res, 500, { error: e.message.split('\n').slice(0, 3).join(' / ') });
     }
   });
@@ -123,7 +136,10 @@ async function startPicker({ cfg, configPath, port = 7788, open = true }) {
   const addr = `http://127.0.0.1:${server.address().port}/`;
   if (open) spawn('open', [addr], { stdio: 'ignore', detached: true }).unref();
 
-  const cleanup = () => fs.rmSync(tmp, { recursive: true, force: true });
+  const cleanup = () => {
+    process.removeListener('exit', cleanup);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  };
   process.once('exit', cleanup);
   return { server, url: addr, close: () => new Promise(r => server.close(() => (cleanup(), r()))) };
 }

@@ -107,7 +107,8 @@ let S = {
   template: BOOT.template, episode: BOOT.episode,
   anchor: BOOT.anchor || 'bottom-right', useAnchor: !!BOOT.useAnchor, usePct: false,
 };
-let scale = 1, renderSeq = 0, renderTimer = null;
+let scale = 1, renderSeq = 0, renderTimer = null, completed = false;
+$('btnSave').textContent = BOOT.saveLabel || '保存到 config';
 
 $('bg').src = '/master?' + Date.now();
 $('bg').onload = () => { scale = $('bg').clientWidth / MW; drawBox(); };
@@ -228,6 +229,7 @@ function updateOut() { $('out').textContent = JSON.stringify(configOut(), null, 
 // ---------- 真实渲染（调 ffmpeg，非浏览器近似） ----------
 function scheduleRender() { clearTimeout(renderTimer); renderTimer = setTimeout(doRender, 450); }
 async function doRender() {
+  if (completed) return;
   const seq = ++renderSeq;
   setStat('渲染中…', 'busy');
   try {
@@ -236,12 +238,12 @@ async function doRender() {
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
     const info = JSON.parse(r.headers.get('x-render-info') || '{}');
     const blob = await r.blob();
-    if (seq !== renderSeq) return;
+    if (completed || seq !== renderSeq) return;
     const old = $('bg').src;
     $('bg').src = URL.createObjectURL(blob);
     if (old.startsWith('blob:')) URL.revokeObjectURL(old);
     setStat(`已渲染 · 字号 ${info.fontSize} · 墨迹 ${info.ink?.w}×${info.ink?.h}`, 'ok');
-  } catch (e) { if (seq === renderSeq) setStat('渲染失败：' + e.message, 'err'); }
+  } catch (e) { if (!completed && seq === renderSeq) setStat('渲染失败：' + e.message, 'err'); }
 }
 function setStat(t, c) { $('stat').textContent = t; $('stat').className = 'stat ' + (c || ''); }
 
@@ -251,13 +253,20 @@ $('btnCopy').onclick = async () => {
   setStat('已复制到剪贴板', 'ok');
 };
 $('btnSave').onclick = async () => {
+  $('btnSave').disabled = true;
   setStat('保存中…', 'busy');
   try {
     const r = await fetch('/save', { method:'POST', headers:{'content-type':'application/json'},
       body: JSON.stringify(configOut()) });
     if (!r.ok) throw new Error((await r.json()).error || r.statusText);
-    setStat('已写回 ' + BOOT.configPath, 'ok');
+    completed = !!BOOT.completes;
+    if (completed) {
+      clearTimeout(renderTimer);
+      $('btnRender').disabled = true;
+      setStat('集数位置已确认，正在批量换封面。请在终端查看进度。', 'ok');
+    } else setStat('已写回 ' + BOOT.configPath, 'ok');
   } catch (e) { setStat('保存失败：' + e.message, 'err'); }
+  finally { $('btnSave').disabled = completed; }
 };
 
 paintAnchors(); syncForm(); drawBox(); doRender();

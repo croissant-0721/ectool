@@ -56,7 +56,8 @@ const deepMerge = (a, b) => {
 };
 
 const USAGE = `用法:
-  ectool replace-cover [文件夹]              批量换封面；不填则弹出文件夹选择框\n  ectool replace-cover <视频> <新封面图片> [-o 输出.mp4]  仅替换已有首帧封面
+  ectool replace-cover [文件夹]              拖框确认集数位置后批量换封面；不填则选择文件夹
+  ectool replace-cover <视频> <新封面图片> [-o 输出.mp4]  仅替换已有首帧封面
   ectool plan    -c <config.json>            仅显示识别结果与警告，不写任何文件
   ectool preview -c <config.json> [-e N] [-o out.png]   渲染单张封面预览
   ectool make    <素材文件夹>                  一键出片：自动识别封面/原片/字幕/BGM，无需配置文件
@@ -68,6 +69,7 @@ const USAGE = `用法:
   -c, --config   配置文件路径（必填）
   -e, --episode  preview 用的集数（默认 1）
   -o, --out      preview 输出路径（默认 <output>/_preview.png）
+      --no-text  replace-cover 批量时直接使用图片，不添加集数
       --replace-cover  make/run 时替换已有的一帧封面（保持原时长）
       --force    run 时覆盖已存在的输出
       --limit N  run 时只处理前 N 个（试跑用）
@@ -182,6 +184,7 @@ async function main() {
       force: { type: 'boolean', default: false },
       limit: { type: 'string' },
       port: { type: 'string' },
+      'no-text': { type: 'boolean', default: false },
       'replace-cover': { type: 'boolean', default: false },
       'no-open': { type: 'boolean', default: false },
       'use-default-position': { type: 'boolean', default: false },
@@ -193,7 +196,7 @@ async function main() {
   await checkTools();
 
   if (cmd === 'replace-cover') {
-    const { replaceCover, replaceFolder } = require('../src/replace-cover');
+    const { replaceCover, replaceFolder, configureReplacement } = require('../src/replace-cover');
     if (positionals.length > 3) throw new Error('用法: ectool replace-cover [文件夹] 或 <视频> <新封面图片>');
     if (positionals.length <= 2) {
       let folder = positionals[1];
@@ -203,7 +206,10 @@ async function main() {
         const chosen = await exec('osascript', ['-e', 'POSIX path of (choose folder with prompt "选择含视频和一张新封面的文件夹")']);
         folder = chosen.stdout.toString().trim();
       }
-      const batch = await replaceFolder({ folder, out: v.out, onEvent: e => {
+      const lettering = v['no-text'] ? undefined : await configureReplacement({ folder,
+        port: v.port ? Number(v.port) : 0, open: !v['no-open'],
+        onReady: url => console.log(`拖动集数位置后，点击「确认位置并批量换封面」开始：${url}`) });
+      const batch = await replaceFolder({ folder, out: v.out, lettering, onEvent: e => {
         if (e.status === 'start') console.log(`新封面: ${e.cover}\n视频: ${e.total} 个\n输出: ${e.out}`);
         else if (e.status === 'fallback') console.log(`  快速拼接不可用，改用整体重编码: ${e.reason}`);
         else if (e.status === 'processing') console.log(`[${e.index}/${e.total}] 正在换封面: ${e.file}`);
